@@ -1,242 +1,100 @@
 # 🔧 Nimbus MCP Server
 
-Standalone **Model Context Protocol (MCP)** server for the Nimbus Furniture platform.
+Standalone **Model Context Protocol (MCP)** HTTP server for the Nimbus Furniture platform.
 
-Provides live user account lookup tools over HTTP, consumed by the **[nimbus_agent](../nimbus_agent/)** AI support agent.
-
----
-
-## What is this?
-
-The `nimbus_mcp` service is a lightweight, independently deployable HTTP server that exposes two tools via [FastMCP](https://github.com/jlowin/fastmcp):
-
-| Tool | Description |
-|---|---|
-| `get_user_by_email` | Look up a Nimbus customer account by email address |
-| `get_user_account_status` | Retrieve plan type, account status, and plan details by user ID |
-
-The agent calls these tools at runtime over HTTP using the MCP protocol — keeping live user data completely separate from the AI agent logic.
+Built with **FastMCP** and integrated directly with **MongoDB Atlas** (pure cloud database operations, no local file fallbacks). Exposes live tools to query products, place and manage orders, and retrieve customer account profiles.
 
 ---
 
-## Project Structure
+## 🌟 Capabilities & Exposed Tools
 
-```
-nimbus_mcp/
-├── server.py          # FastMCP server — defines and exposes MCP tools
-├── data/
-│   └── users.json     # Nimbus customer database (8 mock users)
-├── requirements.txt   # Minimal dependencies (fastmcp, mcp, python-dotenv)
-├── .gitignore
-└── README.md
-```
+| Tool | Category | Description |
+|---|---|---|
+| `place_order` | Orders | Place a new furniture order into MongoDB Atlas (updates inventory, calculates total, generates tracking) |
+| `get_order_by_id` | Orders | Retrieve order tracking, delivery estimate, item breakdown, and status by order ID |
+| `get_customer_orders` | Orders | Retrieve full order history for a customer by email |
+| `cancel_order` | Orders | Cancel an order and automatically restore stock to the product catalog |
+| `list_products` | Products | Browse furniture catalog with category and keyword search filters |
+| `get_product_details` | Products | Get full specs, dimensions, materials, stock count, and price for a product |
+| `get_user_by_email` | Accounts | Look up customer account details, membership plan, and order history count |
+| `get_user_account_status` | Accounts | Retrieve plan details (Free vs. Premium) and account status/suspensions |
 
 ---
 
-## Tools Exposed
+## 🗄️ MongoDB Collections
 
-### `get_user_by_email(email: str) → dict`
+The server operates against the `nimbus_db` database on MongoDB Atlas:
 
-Looks up a customer by their email address.
-
-**Returns:**
+### 1. `products` Collection (30 Fake Furniture Items)
+Contains 30 high-detail furniture records across Chairs, Desks, Sofas, Tables, Storage, Beds, Lighting, and Outdoor.
+Includes the requested items and schemas:
 ```json
 {
-  "found": true,
-  "id": "usr_001",
-  "name": "Sarah Chen",
-  "email": "sarah.chen@example.com",
-  "plan": "premium",
-  "account_status": "active",
-  "last_login": "2026-08-03T10:22:14Z",
-  "created_at": "2024-03-15T08:00:00Z",
-  "total_orders": 12,
-  "store_credit": 25.00
+  "product_id": "PROD-001",
+  "product": "chair",
+  "price": "200rs",
+  "price_num": 200,
+  "category": "Chairs",
+  "description": "Versatile lightweight minimalist stacking chair, ideal for dining or home study.",
+  "material": "Molded Polymer & Powder-Coated Steel Legs",
+  "color": "Matte White",
+  "dimensions": "32H x 18W x 18D inches",
+  "stock": 50,
+  "in_stock": true,
+  "rating": 4.5,
+  "reviews_count": 89,
+  "warranty": "1-Year Warranty"
 }
 ```
 
-If not found:
-```json
-{ "found": false, "error": "No Nimbus Furniture account found for email: x@x.com" }
-```
-
----
-
-### `get_user_account_status(user_id: str) → dict`
-
-Returns plan and status details for a user by ID.
-
-**Returns (Free plan):**
+### 2. `orders` Collection
+Tracks all customer orders placed through the MCP server (simplified mock schema):
 ```json
 {
-  "found": true,
-  "id": "usr_002",
-  "name": "James Patel",
-  "plan": "free",
-  "account_status": "active",
-  "plan_details": "Nimbus Free: standard shipping rates apply, White Glove Delivery available for $49/item, regular support. Upgrade to Nimbus Premium for $9.99/month..."
-}
-```
-
-**Returns (Premium plan):**
-```json
-{
-  "found": true,
-  "id": "usr_001",
-  "name": "Sarah Chen",
-  "plan": "premium",
-  "account_status": "active",
-  "plan_details": "Nimbus Premium: free standard shipping on all furniture orders, free White Glove Delivery & assembly on large items, 10% member discount..."
-}
-```
-
-**Returns (Suspended):**
-```json
-{
-  "found": true,
-  "id": "usr_004",
-  "name": "Derek Kim",
-  "plan": "free",
-  "account_status": "suspended",
-  "suspension_reason": "Payment dispute — account under review",
-  "plan_details": "..."
+  "_id": {
+    "$oid": "6adb6cba92bd13bd47018b6f"
+  },
+  "order_id": "ORD-20260801-7102",
+  "customer_email": "sarah.chen@example.com",
+  "customer_name": "Sarah Chen",
+  "items": [
+    {
+      "product_id": "PROD-002",
+      "product": "Nimbus Ergonomic Task Chair",
+      "price": "4500rs",
+      "quantity": 1
+    }
+  ],
+  "total_amount": "4500rs",
+  "total_price_num": 4500,
+  "shipping_address": "742 Evergreen Terrace, Springfield"
 }
 ```
 
 ---
 
-## Setup
+## 🚀 Running the MCP Server
 
-### 1. Prerequisites
-
-- Python 3.10+
-
-### 2. Create a virtual environment
-
-```bash
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
-```
-
-### 3. Install dependencies
-
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables (optional)
-
-The only configurable variable is the port. Create a `.env` file if needed:
-
+### 2. Environment Variables (.env)
 ```env
+MONGODB_URI="mongodb+srv://<user>:<password>@cluster0.v3dfdhj.mongodb.net/?appName=Cluster0"
+MONGODB_DB_NAME="nimbus_db"
 MCP_SERVER_PORT=8001
+MCP_SERVER_HOST="0.0.0.0"
 ```
 
-The default port is `8001` if not set.
+### 3. Seed Database (Optional — runs automatically on startup if empty)
+```bash
+python seed_db.py
+```
 
----
-
-## Running Locally
-
+### 4. Start Server
 ```bash
 python server.py
 ```
-
-The MCP server starts at:
-```
-http://127.0.0.1:8001/mcp
-```
-
-To verify it's running, check the console output:
-```
-INFO:     Started server process
-INFO:     Uvicorn running on http://127.0.0.1:8001
-```
-
-> ⚠️ Always start `nimbus_mcp` **before** `nimbus_agent`. The agent connects to this server on startup and falls back to RAG-only mode if it can't reach it.
-
----
-
-## Deploying to Render
-
-Deploy as a **Web Service** from your GitHub repo:
-
-| Setting | Value |
-|---|---|
-| **Root Directory** | `nimbus_mcp` |
-| **Build Command** | `pip install -r requirements.txt` |
-| **Start Command** | `python server.py` |
-| **Port** | `8001` |
-
-**Environment variable to set in Render dashboard:**
-
-```
-MCP_SERVER_PORT=8001
-```
-
-After deploying, copy the public URL (e.g. `https://nimbus-mcp.onrender.com`) and set the following in your **nimbus_agent** Render service:
-
-```
-MCP_SERVER_URL=https://nimbus-mcp.onrender.com/mcp
-```
-
-> ⚠️ Deploy `nimbus_mcp` **first**, then deploy `nimbus_agent`. The agent needs the MCP URL to be live at startup.
-
----
-
-## Updating the User Database
-
-The user data lives in `data/users.json`. Each user record follows this schema:
-
-```json
-{
-  "id": "usr_001",
-  "email": "user@example.com",
-  "name": "Full Name",
-  "plan": "premium | free",
-  "account_status": "active | suspended",
-  "last_login": "2026-08-03T10:22:14Z",
-  "created_at": "2024-03-15T08:00:00Z",
-  "total_orders": 12,
-  "store_credit": 25.00,
-  "suspension_reason": "Optional — only present if account_status is suspended"
-}
-```
-
-After editing `users.json`, restart the server — the file is loaded once at startup.
-
----
-
-## Mock Users (for testing)
-
-| Email | Plan | Status |
-|---|---|---|
-| sarah.chen@example.com | Premium | Active |
-| james.patel@example.com | Free | Active |
-| maria.gonzalez@example.com | Premium | Active |
-| derek.kim@example.com | Free | **Suspended** |
-| linda.wu@example.com | Premium | Active |
-| tom.nguyen@example.com | Free | Active |
-| aisha.johnson@example.com | Premium | Active |
-| carlos.rivera@example.com | Free | Active |
-
----
-
-## Requirements
-
-```
-fastmcp>=2.0.0
-mcp>=1.0.0
-python-dotenv>=1.0.0
-```
-
----
-
-## License
-
-MIT — free to use, modify, and extend.
+Server runs streamable HTTP on `http://127.0.0.1:8001/mcp`.

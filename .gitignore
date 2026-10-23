@@ -11,6 +11,9 @@ dist/
 build/
 *.egg
 
+# migration scripts 
+seed_db.py
+
 # Virtual environments
 venv/
 .venv/
@@ -29,3 +32,6 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# data
+data
